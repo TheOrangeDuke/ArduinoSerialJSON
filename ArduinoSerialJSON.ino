@@ -37,10 +37,11 @@ void loop()
   //build_transmission();
   build_average_int();
  
-  Serial.println(JSON_string);
+  //Serial.println(JSON_string);
  
   transmission_number += 1;
   JSON_string = ""; 
+  delay(1990);
 }
 
 void build_average_int(){
@@ -50,7 +51,7 @@ void build_average_int(){
   }
   lol /= sensor_count;
   
-  JSON_string = "" + lol;
+  Serial.println(lol);
 }
 
 void get_sensor_values(){
