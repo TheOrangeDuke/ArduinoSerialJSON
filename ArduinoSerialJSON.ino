@@ -34,12 +34,23 @@ void setup()
 void loop()
 {
   get_sensor_values();
-  build_transmission();
+  //build_transmission();
+  build_average_int();
  
   Serial.println(JSON_string);
  
   transmission_number += 1;
   JSON_string = ""; 
+}
+
+void build_average_int(){
+  int lol = 0;
+  for(int i = 0; i < sensor_count; i++){
+    lol += values[i];
+  }
+  lol /= sensor_count;
+  
+  JSON_string = "" + lol;
 }
 
 void get_sensor_values(){
