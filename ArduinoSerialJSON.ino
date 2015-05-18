@@ -1,31 +1,35 @@
+//------------------------------------------------------STATE-VARIABLES
+const int button = 9;                                   // button for state changes
+int machine_state = 0;                                  // circular integer for state
+
+//------------------------------------------------------LED-VARIABLES
+const int led = 6;                                      // pin
+float led_intensity = 0;                                // value for the oscillation
+float led_oscillation_variance = 0.006;                  // oscillation variance
+boolean led_oscillation_direction = true;               // oscillation direction
+
 //------------------------------------------------------SENSOR-VARIABLES
 const int sensors[] = {A0, A1, A2, A3, A4, A5};         // array of sensor pins
 int values[] = {0, 0, 0, 0, 0, 0};                      // values read from the sensors
 boolean states[] = {true, true, true, true, true, true};// on/off states of sensors
 int sensor_count = 6;                                   // number of sensors used
  
-//---------------------------------------------------------LED-VARIABLES
-const int status_led = 6;                               // pin
-const int button = 7;                                   // button for state changes
-int status_led_state = 0;                               // circular integer for state
-float status_led_oscillation = 0;                       // value for the oscillation
-float status_led_oscillation_variance = 0.05;           // oscillation variance
-boolean status_led_oscillation_direction = true;        // oscillation direction
- 
-//------------------------------------------------TRANSMISSION-VARIABLES
+//------------------------------------------------------TRANSMISSION-VARIABLES
 String JSON_string;                                     // transmission string
 int transmission_number;                                // transmission id
-int transmissions_per_second = 5;                       // frequency
-long wait = (1000/transmissions_per_second);            // wait time between
+int transmissions_per_second = 4;                       // frequency
 long previous_millis = 0;                               // previous transmission time
+long wait;                                              // wait time between
+
  
  
 //---------------------------------------------------------------
 //-----------------------------SETUP-----------------------------
 //---------------------------------------------------------------
 void setup(){
- 
-//-----------------------------------------------------------PINS
+  //-----------------------------------------------------------TIME
+  wait = (1000/transmissions_per_second);
+  //-----------------------------------------------------------PINS
   Serial.begin(9600);                                   // starting serial
   pinMode(0, OUTPUT);
   pinMode(1, OUTPUT);
@@ -34,11 +38,11 @@ void setup(){
   pinMode(4, OUTPUT);
   pinMode(5, OUTPUT);
  
-  pinMode(status_led, OUTPUT);
+  pinMode(led, OUTPUT);
   pinMode(button, INPUT_PULLUP);
  
-  set_sensor_state();
-  status_led_action();
+  update_sensor_state();
+  led_action();
 }
  
  
@@ -49,26 +53,28 @@ void loop()
 {  
   if( wait < (millis() - previous_millis))
   {
-    get_sensor_values();
-    build_transmission();
-    Serial.println(JSON_string);
-    status_led_action();//---------------------------------ACTION
+    if(machine_state == 0 || machine_state == 1)
+    {
+      get_sensor_values();
+      build_transmission();
+      Serial.println(JSON_string);
+    }
+    led_action();
     previous_millis = millis();
   }
-  status_led_action();//-----------------------------------ACTION
-  status_led_button();
+  if(machine_state == 2)
+  {
+    led_action();//------------------------------------LED-ACTION
+  }
+  
+  machine_state_button();
 }
  
  
 //---------------------------------------------------------------
 //-----------------------SENSOR-METHODS--------------------------
 //---------------------------------------------------------------
-void toggle_sensor_state(int sensor)
-{
-    states[sensor] != states[sensor];
-    set_sensor_state();
-}
-void set_sensor_state()
+void update_sensor_state()
 {
   for(int i = 0; i < sensor_count; i++)
   {
@@ -81,6 +87,11 @@ void set_sensor_state()
           digitalWrite(i, LOW);
       }
   }
+}
+void toggle_sensor_state(int sensor)
+{
+    states[sensor] != states[sensor];
+    update_sensor_state();
 }
 void get_sensor_values()
 {
@@ -95,63 +106,86 @@ void get_sensor_values()
 //---------------------------------------------------------------
 //---------------------LED-STATUS-METHODS------------------------
 //---------------------------------------------------------------
-void status_led_action()
+void led_action()
 {
-    if(status_led_state == 0) //-------------------turned on mode
-    {
-        analogWrite(status_led, 255);
-    }
-    else if (status_led_state == 1) //---------------looping mode
-    {
-        //--------------INCREMENT OR DECREMENT BASED ON DIRECTION
-        if(status_led_oscillation_direction){
-            status_led_oscillation += status_led_oscillation_variance;
-        }
-        else
-        {
-            status_led_oscillation -= status_led_oscillation_variance;
-        }
-       
-        //-----------------TOGGLE DIRECTION IF SOON OUT OF BOUNDS
-        if(status_led_oscillation>254.0 || status_led_oscillation< 1.0)
-        {
-            status_led_oscillation_direction != status_led_oscillation_direction;
-        }
-       
-        analogWrite(status_led, ((int) status_led_oscillation));
-    }
-    else if (status_led_state == 2) //----------transmission mode
-    {
-        if(status_led_oscillation_direction)
-        {
-            analogWrite(status_led, 255);
-            status_led_oscillation_direction = false;
-        }
-        else
-        {
-            analogWrite(status_led, 0);
-            status_led_oscillation_direction = true;
-        }
-    }
+  if (machine_state == 0) //--------------------transmission mode
+  {
+    led_action_type_zero();
+  }
+  else if (machine_state == 1) //---------------short transmission mode
+  {
+    led_action_type_zero();
+  }
+  else if (machine_state == 2)
+  {
+    led_action_type_one();
+  }
+    
+  analogWrite(led, (int) led_intensity);
 }
-void status_led_button(){
-    int val = digitalRead(button);
-    if(val == 0){
-        analogWrite(status_led, 255);
-        turn_status_led_state();
-        delay(2000);
-        analogWrite(status_led, 0);
-    }
-}
-void turn_status_led_state()
+
+void led_action_type_zero()
 {
-    if(status_led_state <2)
+    if(led_oscillation_direction)
     {
-        status_led_state++;
+      led_intensity = 255.0;
+      led_oscillation_direction = false;
     }
     else
     {
-        status_led_state = 0;
+      led_intensity = 0.0;
+      led_oscillation_direction = true;
+    } 
+}
+
+void led_action_type_one()
+{
+  //--------------INCREMENT OR DECREMENT BASED ON DIRECTION
+  if(led_oscillation_direction){
+    led_intensity += led_oscillation_variance;
+  }
+  else
+  {
+    led_intensity -= led_oscillation_variance;
+  }
+ 
+  //-----------------TOGGLE DIRECTION IF SOON OUT OF BOUNDS
+  if((led_intensity > (255.0 - (led_oscillation_variance/2))) || (led_intensity < (led_oscillation_variance/2)))
+  {
+    if(led_oscillation_direction)
+    {
+      led_oscillation_direction = false;
+    }
+    else
+    {
+      led_oscillation_direction = true;
+    }
+     
+  } 
+}
+
+void machine_state_button(){
+    int val = digitalRead(button);
+    if(val == 1){
+        led_intensity = 255.0;
+        led_oscillation_direction = true; 
+        analogWrite(led, (int)led_intensity);
+        turn_machine_state();
+        delay(5000);
+        led_intensity = 0.0;
+        analogWrite(led, (int)led_intensity);
+    }
+}
+
+void turn_machine_state()
+{
+    if(machine_state < 2)
+    {
+        machine_state++;
+    }
+    else
+    {
+        machine_state = 0;
     }
 }
  
@@ -162,27 +196,46 @@ void turn_status_led_state()
 //---------------------------------------------------------------
 void build_transmission()
 {
+  //RESET
   JSON_string = "";
  
+  //TRANSMISSION
   JSON_string += "{\"transmission\":" ;
-  JSON_string += transmission_number++;
-  JSON_string += "{\"transmission\":" ;
-  JSON_string += transmission_number++;
-  JSON_string += ",\"sensor\":[";
- 
-  for(int i = 0; i < sensor_count; i++)
+  JSON_string += String(transmission_number++);
+  
+  //STATE
+  JSON_string += ",\"state\":";
+  JSON_string += "[{\"machine\":";
+  JSON_string += String((int)machine_state);
+  JSON_string += "},{\"led_intensity\":";
+  JSON_string += String((int)led_intensity);
+  JSON_string += ", \"led_oscillation_direction\":";
+  JSON_string += led_oscillation_direction;
+  JSON_string += "}]";
+  
+  
+  if(machine_state == 0)
   {
-    JSON_string += "{\"sensor\":\"";
-    JSON_string += sensors[i];
-    JSON_string += "\",\"value\":";
-    JSON_string += values[i];
-    JSON_string += "\",\"state\":";
-    JSON_string += states[i];
-    JSON_string += "}";
-    if(i < (sensor_count - 1))
+    //SENSORS
+    JSON_string += ",\"sensors\":[";
+    for(int i = 0; i < sensor_count; i++)
     {
-      JSON_string += ",";
+      JSON_string += "{\"sensor\":\"";
+      JSON_string += sensors[i];
+      JSON_string += "\",\"value\":";
+      JSON_string += values[i];
+      JSON_string += ",\"state\":";
+      JSON_string += states[i];
+      JSON_string += "}";
+      if(i < (sensor_count - 1))
+      {
+        JSON_string += ",";
+      }
     }
+    JSON_string += "]";
   }
-  JSON_string += "]}";
+  
+  
+  //ENDING
+  JSON_string += "}";
 }
